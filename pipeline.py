@@ -1,4 +1,4 @@
-from agents import build_reader_agent, build_search_agent, writer_chain, critic_prompt
+from agents import build_reader_agent, build_search_agent, writer_chain, critic_chain
 
 
 def run_research_pipeline(topic: str):
@@ -77,7 +77,7 @@ def run_research_pipeline(topic: str):
     print("\n" + " =" * 50)
     yield {"step": "critic_start", "state": state}
 
-    state["critic_review"] = critic_prompt.invoke({"report": state["report"]})
+    state["critic_review"] = critic_chain.invoke({"report": state["report"]})
     print("\n Critic review: ", state["critic_review"])
     yield {"step": "critic_end", "state": state}
 

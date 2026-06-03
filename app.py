@@ -1,637 +1,373 @@
 import streamlit as st
 import time
-import json
-from pipeline import run_research_pipeline
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ResearchFlow",
+    page_title="Research Agent Pipeline",
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ── Pixel-Perfect CSS Overrides ────────────────────────────────────────────────
+# ── Custom CSS ─────────────────────────────────────────────────────────────────
 st.markdown(
     """
 <style>
-/* ---------- Base Layout & Typography ---------- */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
 
-html, body, [class*="css"] {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    background-color: #0b0f19 !important;
-    color: #94a3b8 !important;
-}
+html, body, [class*="css"] { font-family: 'DM Mono', monospace; }
 
-/* Hide default streamlit spacing & headers */
-#MainMenu, footer, header { visibility: hidden; }
-.block-container { padding: 0 !important; max-width: 100% !important; }
-div[data-testid="stColumn"] { padding: 0 !important; }
+.stApp { background: #0a0a0f; color: #e8e4d9; }
 
-/* ---------- Sidebar Theme Elements ---------- */
-[data-testid="stSidebar"] {
-    background-color: #090d16 !important;
-    border-right: 1px solid #161f30 !important;
-}
-[data-testid="stSidebar"] > div:first-child { padding: 0; }
+[data-testid="stSidebar"] { background: #0f0f18 !important; border-right: 1px solid #1e1e2e; }
+[data-testid="stSidebar"] * { color: #e8e4d9 !important; }
 
-.sidebar-logo {
-    display: flex; align-items: center; gap: 12px;
-    padding: 24px 20px;
-    border-bottom: 1px solid #161f30;
-    margin-bottom: 12px;
+.hero-wrap {
+    padding: 2.2rem 0 2rem 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #1e1e2e;
 }
-.sidebar-logo-icon {
-    width: 32px; height: 32px; border-radius: 8px;
-    background: #0d2329; border: 1px solid #00f0c2;
-    display: flex; align-items: center; justify-content: center;
+.hero-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: #7c6af7;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
 }
-.sidebar-logo-icon svg { fill: #00f0c2; width: 16px; height: 16px; }
-.sidebar-logo-text { font-size: 16px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px; }
-.sidebar-logo-sub  { font-size: 11px; color: #475569; margin-top: -1px; }
-
-/* Custom Native Radio Nav Buttons */
-div[data-testid="stRadio"] > label { display:none; }
-div[data-testid="stRadio"] > div   { gap: 4px; padding: 0 12px; }
-div[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child { display:none; }
-div[data-testid="stRadio"] label {
-    background: transparent; border-radius: 8px;
-    padding: 10px 16px; font-size: 14px; color: #64748b;
-    cursor: pointer; display: flex; align-items: center; gap: 12px;
-    transition: all 0.2s ease; margin: 0; width: 100%;
+.hero-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 3.2rem;
+    letter-spacing: -0.04em;
+    line-height: 1.0;
+    margin-bottom: 0.6rem;
+    background: linear-gradient(110deg, #f0ebe0 30%, #7c6af7 70%, #3ecf8e 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
-div[data-testid="stRadio"] label:hover { background: #111726; color: #f8fafc; }
-div[data-testid="stRadio"] label[aria-checked="true"] {
-    background: #0d1e24; color: #00f0c2; font-weight: 600;
+.hero-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: #6b6b7e;
+    letter-spacing: 0.08em;
 }
 
-.sidebar-bottom {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    padding: 16px; border-top: 1px solid #161f30;
-    background-color: #090d16;
-}
-.nav-item-footer {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px; font-size: 14px; color: #64748b; cursor: pointer;
-}
-.nav-item-footer:hover { color: #f8fafc; }
+.step-card { background: #111119; border: 1px solid #1e1e2e; border-radius: 8px; padding: 1rem 1.2rem; margin-bottom: 0.7rem; display: flex; align-items: center; gap: 0.8rem; transition: border-color 0.3s; }
+.step-card.active  { border-color: #7c6af7; background: #13131f; }
+.step-card.done    { border-color: #3ecf8e; background: #0f1a15; }
+.step-card.pending { opacity: 0.45; }
+.step-icon { font-size: 1.3rem; }
+.step-label { font-family: 'DM Mono', monospace; font-size: 0.82rem; letter-spacing: 0.05em; }
+.step-status { margin-left: auto; font-size: 0.72rem; color: #6b6b7e; text-transform: uppercase; letter-spacing: 0.1em; }
+.step-card.active  .step-status { color: #7c6af7; }
+.step-card.done    .step-status { color: #3ecf8e; }
 
-/* ---------- Main Container ---------- */
-.main-wrap { padding: 32px 40px; background-color: #0b0f19; min-height: 100vh; }
+.output-panel { background: #111119; border: 1px solid #1e1e2e; border-radius: 8px; padding: 1.4rem 1.6rem; margin-top: 1rem; }
+.output-panel h4 { font-family: 'Syne', sans-serif; font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase; color: #7c6af7; margin-bottom: 0.8rem; }
 
-/* ---------- Action Row & Topbar ---------- */
-.topbar-container {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 20px; margin-bottom: 32px; width: 100%;
-}
-.search-wrapper { flex: 1; position: relative; }
-.search-icon-embed {
-    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
-    color: #475569; pointer-events: none;
-}
-.top-actions-right { display: flex; align-items: center; gap: 20px; }
-.icon-btn-utility { color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.icon-btn-utility:hover { color: #00f0c2; }
-.avatar-frame { width: 32px; height: 32px; border-radius: 50%; background: #161f30; border: 1px solid #334155; }
+.stButton > button { background: #7c6af7 !important; color: #fff !important; border: none !important; border-radius: 6px !important; font-family: 'Syne', sans-serif !important; font-weight: 700 !important; font-size: 0.95rem !important; letter-spacing: 0.06em !important; padding: 0.65rem 2.2rem !important; transition: background 0.2s, transform 0.15s !important; width: 100% !important; }
+.stButton > button:hover { background: #9b8cff !important; transform: translateY(-1px) !important; }
+.stButton > button:active { transform: translateY(0px) !important; }
 
-/* ---------- Status Stepper ---------- */
-.stepper-container {
-    display: flex; align-items: center; justify-content: space-between;
-    background: #111622; border: 1px solid #1a2333;
-    border-radius: 12px; padding: 24px 48px; margin-bottom: 32px;
-}
-.step-node { display: flex; align-items: center; gap: 12px; }
-.step-ring {
-    width: 36px; height: 36px; border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    border: 1px solid #1e293b; background: #0b0f19; color: #475569;
-}
-.step-node.active .step-ring { border-color: #00f0c2; background: #0d2329; color: #00f0c2; box-shadow: 0 0 12px rgba(0, 240, 194, 0.2); }
-.step-node.complete .step-ring { border-color: #00f0c2; background: #00f0c2; color: #090d16; }
-.step-label { font-size: 13px; font-weight: 500; color: #475569; }
-.step-node.active .step-label { color: #00f0c2; font-weight: 600; }
-.step-node.complete .step-label { color: #f8fafc; }
-.line-divider { flex: 1; height: 1px; background: #1e293b; margin: 0 24px; }
-.line-divider.active { background: #00f0c2; }
+.stTextInput > div > div > input, .stTextArea > div > div > textarea { background: #111119 !important; border: 1px solid #1e1e2e !important; border-radius: 6px !important; color: #e8e4d9 !important; font-family: 'DM Mono', monospace !important; font-size: 0.9rem !important; }
+.stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus { border-color: #7c6af7 !important; box-shadow: 0 0 0 2px rgba(124,106,247,0.2) !important; }
 
-/* ---------- Agent Workspace Modules ---------- */
-.module-card {
-    background: #111622; border: 1px solid #1a2333;
-    border-radius: 12px; margin-bottom: 20px; overflow: hidden;
-}
-.module-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 20px; background: #111622; border-bottom: 1px solid transparent;
-}
-.module-header.open { border-bottom: 1px solid #1a2333; }
-.module-meta-left { display: flex; align-items: center; gap: 12px; }
-.module-icon-lbl { color: #475569; display: flex; align-items: center; }
-.module-icon-lbl.active { color: #00f0c2; }
-.module-title-lbl { font-size: 14px; font-weight: 600; color: #64748b; }
-.module-title-lbl.active { color: #f8fafc; }
+.stSelectbox > div > div { background: #111119 !important; border: 1px solid #1e1e2e !important; border-radius: 6px !important; color: #e8e4d9 !important; }
 
-.status-tag {
-    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px;
-    letter-spacing: 0.5px; text-transform: uppercase;
-}
-.status-tag.complete { background: rgba(0, 240, 194, 0.1); color: #00f0c2; }
-.status-tag.processing { background: rgba(56, 189, 248, 0.1); color: #38bdf8; }
-.status-tag.pending { background: #1e293b; color: #64748b; }
+label, .stTextInput label, .stTextArea label, .stSelectbox label { font-family: 'DM Mono', monospace !important; font-size: 0.78rem !important; color: #6b6b7e !important; text-transform: uppercase !important; letter-spacing: 0.1em !important; }
 
-.module-body { padding: 20px; background: #111622; }
+hr { border-color: #1e1e2e !important; }
 
-/* ---------- Stream Terminal View Container ---------- */
-.terminal-block {
-    background: #090d16; border: 1px solid #161f30;
-    border-radius: 8px; padding: 16px;
-    font-family: 'JetBrains Mono', monospace; font-size: 12px;
-    color: #38bdf8; line-height: 1.6; overflow-x: auto;
-}
-.terminal-block.json-view { color: #34d399; }
+.score-badge { display: inline-block; background: #1a1a2e; border: 1px solid #7c6af7; border-radius: 4px; padding: 0.3rem 0.8rem; font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800; color: #7c6af7; margin-bottom: 1rem; }
 
-.log-stream-row { display: flex; gap: 12px; margin-bottom: 6px; font-size: 12px; }
-.log-stream-row:last-child { margin-bottom: 0; }
-.log-prompt-sig { color: #00f0c2; font-weight: bold; }
-.log-msg-txt { color: #94a3b8; }
-.log-highlight { color: #00f0c2; font-weight: 500; }
+.err-box { background: #1a0f0f; border: 1px solid #cf3e3e; border-radius: 8px; padding: 1rem 1.2rem; color: #ff6b6b; font-size: 0.85rem; }
 
-/* Progress Vector Bar */
-.vector-loader-container { margin-top: 16px; }
-.vector-loader-header {
-    display: flex; justify-content: space-between; font-size: 10px;
-    font-weight: 600; color: #475569; margin-bottom: 6px; letter-spacing: 0.5px;
-}
-.vector-loader-bar-bg { background: #161f30; border-radius: 2px; height: 3px; width: 100%; }
-.vector-loader-bar-fill { height: 100%; background: #00f0c2; border-radius: 2px; transition: width 0.3s; }
+.scroll-box { max-height: 340px; overflow-y: auto; padding-right: 0.4rem; }
+.scroll-box::-webkit-scrollbar { width: 4px; }
+.scroll-box::-webkit-scrollbar-track { background: #0a0a0f; }
+.scroll-box::-webkit-scrollbar-thumb { background: #2a2a3e; border-radius: 2px; }
 
-/* ---------- Analytical Research Document Output Panel ---------- */
-.preview-document-card {
-    background: #111622; border: 1px solid #1a2333; border-radius: 12px; padding: 32px;
-}
-.doc-header-row {
-    display: flex; justify-content: space-between; align-items: flex-start;
-    border-bottom: 1px solid #1a2333; padding-bottom: 24px; margin-bottom: 24px;
-}
-.doc-main-title { font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px; }
-.doc-timestamp { font-size: 13px; color: #475569; margin-top: 4px; }
-
-.critic-metric-badge {
-    background: #161f30; border: 1px solid #1a2333; border-radius: 8px;
-    padding: 12px 18px; text-align: center; min-width: 100px;
-}
-.critic-metric-lbl { font-size: 10px; font-weight: 700; color: #475569; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 2px; }
-.critic-metric-num { font-size: 24px; font-weight: 700; color: #00f0c2; }
-.critic-metric-num span { color: #475569; font-size: 16px; font-weight: 400; }
-
-.critique-grid { display: flex; gap: 32px; margin-bottom: 28px; }
-.critique-column { flex: 1; }
-.critique-header-title { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-.critique-header-title.positive { color: #00f0c2; }
-.critique-header-title.negative { color: #f43f5e; }
-
-.critique-bullet { display: flex; gap: 10px; font-size: 13px; color: #94a3b8; margin-bottom: 12px; line-height: 1.5; }
-.critique-bullet-icon { color: #00f0c2; font-size: 14px; flex-shrink: 0; }
-.critique-bullet-icon.negative { color: #f43f5e; }
-
-.block-quote-summary {
-    background: #090d16; border-left: 2px solid #00f0c2;
-    border-radius: 0 6px 6px 0; padding: 20px;
-    font-size: 13px; color: #94a3b8; font-style: italic; line-height: 1.6;
-}
-
-/* ---------- Native Element Overrides (Streamlit inputs) ---------- */
-div[data-testid="stTextInput"] input {
-    background: #111622 !important; border: 1px solid #1a2333 !important;
-    border-radius: 8px !important; color: #ffffff !important;
-    font-size: 14px !important; padding: 12px 16px 12px 42px !important;
-    height: 44px !important;
-}
-div[data-testid="stTextInput"] input:focus {
-    border-color: #00f0c2 !important;
-}
-div[data-testid="stButton"] button {
-    background: #00f0c2 !important; color: #090d16 !important;
-    border: none !important; border-radius: 8px !important;
-    font-weight: 600 !important; padding: 0 20px !important;
-    font-size: 13px !important; height: 44px !important; transition: all 0.2s;
-}
-div[data-testid="stButton"] button:hover {
-    background: #00dbb1 !important; transform: translateY(-0.5px);
-}
+[data-testid="stToolbar"] { display: none !important; }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# ── Persistent Global Navigation State Tracking ─────────────────────────────────
-if "nav" not in st.session_state:
-    st.session_state.nav = "Dashboard"
 
-if "pipeline_state" not in st.session_state:
-    st.session_state.pipeline_state = {
-        "step": None,
-        "state": {}
+# ── Session state defaults ─────────────────────────────────────────────────────
+def _init_state():
+    defaults = {
+        "pipeline_run": False,
+        "current_step": None,
+        "search_results": None,
+        "scraped_content": None,
+        "report": None,
+        "critic_review": None,
+        "error": None,
+        "last_topic": "",
     }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
-def build_stepper(step):
-    steps_order = ["search_start", "search_end", "reader_start", "reader_end", "writer_start", "writer_end", "critic_start", "critic_end"]
-    try:
-        idx = steps_order.index(step) if step else -1
-    except ValueError:
-        idx = -1
-        
-    s_active = idx >= 0 and idx < 1
-    s_done = idx >= 1
-    r_active = idx >= 2 and idx < 3
-    r_done = idx >= 3
-    w_active = idx >= 4 and idx < 5
-    w_done = idx >= 5
-    c_active = idx >= 6 and idx < 7
-    c_done = idx >= 7
 
-    def node(icon, label, active, done):
-        cls = "complete" if done else ("active" if active else "")
-        return f'''
-        <div class="step-node {cls}">
-            <div class="step-ring">{("✓" if done else icon)}</div>
-            <div class="step-label">{label}</div>
-        </div>
-        '''
+_init_state()
 
-    def line(active):
-        cls = "active" if active else ""
-        return f'<div class="line-divider {cls}"></div>'
 
-    return f"""
-    <div class="stepper-container">
-        {node("🔍", "Search Agent", s_active, s_done)}
-        {line(s_done)}
-        {node("📖", "Reader Agent", r_active, r_done)}
-        {line(r_done)}
-        {node("✍️", "Writer Agent", w_active, w_done)}
-        {line(w_done)}
-        {node("🛡️", "Critic Agent", c_active, c_done)}
-    </div>
-    """
-
-def build_search_card(step, state):
-    steps_order = ["search_start", "search_end", "reader_start", "reader_end", "writer_start", "writer_end", "critic_start", "critic_end"]
-    idx = steps_order.index(step) if step in steps_order else -1
-    
-    if idx < 0:
-        status_cls = "pending"
-        status_txt = "Pending"
-        content = ""
-    elif idx == 0:
-        status_cls = "processing"
-        status_txt = "Processing"
-        content = "<div class='terminal-block json-view'>Gathering search results...</div>"
-    else:
-        status_cls = "complete"
-        status_txt = "Complete"
-        import json
-        try:
-            results_text = state.get("search_results", "[]")
-            try:
-                parsed = json.loads(results_text)
-                formatted_results = json.dumps(parsed, indent=2)
-            except:
-                formatted_results = results_text
-        except:
-            formatted_results = "{}"
-            
-        content = f"""
-        <div class="terminal-block json-view" style="white-space: pre-wrap;">{formatted_results[:800]}</div>
-        """
-
-    header_open_cls = "open" if idx >= 0 else ""
-    icon_active_cls = "active" if idx >= 0 else ""
-    icon = "▲" if idx >= 0 else "▼"
-
-    card = f"""
-    <div class="module-card">
-        <div class="module-header {header_open_cls}">
-            <div class="module-meta-left">
-                <span class="module-icon-lbl {icon_active_cls}">🔍</span>
-                <span class="module-title-lbl {icon_active_cls}">Search Agent</span>
-                <span class="status-tag {status_cls}">{status_txt}</span>
-            </div>
-            <div class="icon-btn-utility">{icon}</div>
-        </div>
-    </div>
-    """
-    if idx >= 0:
-        card = card.replace("</div>\\n    </div>", f"</div>\\n    <div class='module-body'>{content}</div>\\n    </div>")
-    return card
-
-def build_reader_card(step, state):
-    steps_order = ["search_start", "search_end", "reader_start", "reader_end", "writer_start", "writer_end", "critic_start", "critic_end"]
-    idx = steps_order.index(step) if step in steps_order else -1
-
-    if idx < 2:
-        status_cls = "pending"
-        status_txt = "Pending"
-        content = ""
-    elif idx == 2:
-        status_cls = "processing"
-        status_txt = "Processing"
-        content = """
-        <div class="terminal-block">
-            <div class="log-stream-row">
-                <span class="log-prompt-sig">&gt;&gt;&gt;</span>
-                <span class="log-msg-txt">Extracting text from relevant URLs...</span>
-            </div>
-            <div class="vector-loader-container">
-                <div class="vector-loader-header">
-                    <span>Reading & Chunking</span>
-                    <span>50%</span>
-                </div>
-                <div class="vector-loader-bar-bg">
-                    <div class="vector-loader-bar-fill" style="width: 50%;"></div>
-                </div>
-            </div>
-        </div>
-        """
-    else:
-        status_cls = "complete"
-        status_txt = "Complete"
-        scraped = state.get("scraped_content", "")[:300]
-        content = f"""
-        <div class="terminal-block">
-            <div class="log-stream-row">
-                <span class="log-prompt-sig">&gt;&gt;&gt;</span>
-                <span class="log-msg-txt">Extraction complete. Content sample:</span>
-            </div>
-            <div class="log-stream-row">
-                <span class="log-msg-txt" style="color: #64748b; font-style: italic;">{scraped}...</span>
-            </div>
-            <div class="vector-loader-container">
-                <div class="vector-loader-header">
-                    <span>Vectorizing Metadata</span>
-                    <span>100%</span>
-                </div>
-                <div class="vector-loader-bar-bg">
-                    <div class="vector-loader-bar-fill" style="width: 100%;"></div>
-                </div>
-            </div>
-        </div>
-        """
-
-    header_open_cls = "open" if idx >= 2 else ""
-    icon_active_cls = "active" if idx >= 2 else ""
-    icon = "▲" if idx >= 2 else "▼"
-
-    card = f"""
-    <div class="module-card">
-        <div class="module-header {header_open_cls}">
-            <div class="module-meta-left">
-                <span class="module-icon-lbl {icon_active_cls}">📋</span>
-                <span class="module-title-lbl {icon_active_cls}">Reader Agent</span>
-                <span class="status-tag {status_cls}">{status_txt}</span>
-            </div>
-            <div class="icon-btn-utility">{icon}</div>
-        </div>
-    </div>
-    """
-    if idx >= 2:
-        card = card.replace("</div>\\n    </div>", f"</div>\\n    <div class='module-body'>{content}</div>\\n    </div>")
-    return card
-
-def build_writer_card(step, state):
-    steps_order = ["search_start", "search_end", "reader_start", "reader_end", "writer_start", "writer_end", "critic_start", "critic_end"]
-    idx = steps_order.index(step) if step in steps_order else -1
-
-    if idx < 4:
-        status_cls = "pending"
-        status_txt = "Pending"
-    elif idx == 4:
-        status_cls = "processing"
-        status_txt = "Processing"
-    else:
-        status_cls = "complete"
-        status_txt = "Complete"
-
-    icon_active_cls = "active" if idx >= 4 else ""
-
-    return f"""
-    <div class="module-card">
-        <div class="module-header">
-            <div class="module-meta-left">
-                <span class="module-icon-lbl {icon_active_cls}">✍️</span>
-                <span class="module-title-lbl {icon_active_cls}">Writer Agent</span>
-                <span class="status-tag {status_cls}">{status_txt}</span>
-            </div>
-            <div class="icon-btn-utility">▼</div>
-        </div>
-    </div>
-    """
-
-def build_critic_card(step, state):
-    steps_order = ["search_start", "search_end", "reader_start", "reader_end", "writer_start", "writer_end", "critic_start", "critic_end"]
-    idx = steps_order.index(step) if step in steps_order else -1
-
-    if idx < 6:
-        status_cls = "pending"
-        status_txt = "Pending"
-    elif idx == 6:
-        status_cls = "processing"
-        status_txt = "Processing"
-    else:
-        status_cls = "complete"
-        status_txt = "Complete"
-
-    icon_active_cls = "active" if idx >= 6 else ""
-
-    return f"""
-    <div class="module-card">
-        <div class="module-header">
-            <div class="module-meta-left">
-                <span class="module-icon-lbl {icon_active_cls}">🛡️</span>
-                <span class="module-title-lbl {icon_active_cls}">Critic Agent</span>
-                <span class="status-tag {status_cls}">{status_txt}</span>
-            </div>
-            <div class="icon-btn-utility">▼</div>
-        </div>
-    </div>
-    """
-
-def build_report_card(step, state):
-    steps_order = ["search_start", "search_end", "reader_start", "reader_end", "writer_start", "writer_end", "critic_start", "critic_end"]
-    idx = steps_order.index(step) if step in steps_order else -1
-
-    if idx < 7:
-        return f"""
-        <div class="preview-document-card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:400px;">
-            <div style="font-size: 48px; margin-bottom: 16px;">🔬</div>
-            <h3 style="color: #f8fafc; font-size: 18px; margin: 0 0 8px 0;">Research Pipeline Idle</h3>
-            <p style="color: #64748b; font-size: 14px; text-align: center;">Enter a topic and click Run Research<br>Your final report will appear here.</p>
-        </div>
-        """
-
-    review = state.get("critic_review", "")
-    report = state.get("report", "")
-    
-    score = "9"
-    for line in review.split("\\n"):
-        if "score" in line.lower() and "/" in line:
-            score = line.split(":")[-1].strip().split("/")[0].strip()
-            break
-            
-    strengths, improvements = [], []
-    current_list = None
-    for line in review.split("\\n"):
-        l = line.strip().lower()
-        if "strength" in l: current_list = strengths
-        elif "improve" in l: current_list = improvements
-        elif line.strip().startswith("-") or line.strip().startswith("•"):
-            if current_list is not None:
-                current_list.append(line.strip().lstrip("-•").strip())
-
-    if not strengths: strengths = ["Comprehensive coverage of the topic.", "High data density with verified citations."]
-    if not improvements: improvements = ["Elaborate more on specific metrics.", "Include a comparative table."]
-
-    s_html = "".join([f'<div class="critique-bullet"><span class="critique-bullet-icon">✓</span><span>{{s}}</span></div>' for s in strengths[:3]])
-    i_html = "".join([f'<div class="critique-bullet"><span class="critique-bullet-icon negative">•</span><span>{{i}}</span></div>' for i in improvements[:2]])
-
-    summary = report[:200].replace('"', "'") + "..." if report else "Report generation successful."
-
-    return f"""
-    <div class="preview-document-card">
-        <div class="doc-header-row">
-            <div>
-                <div class="doc-main-title">Final Research Report</div>
-                <div class="doc-timestamp">Generated just now</div>
-            </div>
-            <div class="critic-metric-badge">
-                <div class="critic-metric-lbl">Critic Score</div>
-                <div class="critic-metric-num">{score}<span>/10</span></div>
-            </div>
-        </div>
-        
-        <div class="critique-grid">
-            <div class="critique-column">
-                <div class="critique-header-title positive">👍 Strengths</div>
-                {s_html}
-            </div>
-            <div class="critique-column">
-                <div class="critique-header-title negative">📈 Improvements</div>
-                {i_html}
-            </div>
-        </div>
-        
-        <div class="block-quote-summary">
-            "{summary}"
-        </div>
-    </div>
-    """
-
-# ── Application Sidebar Structural Mapping ─────────────────────────────────────
+# ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown(
-        """
-    <div class="sidebar-logo">
-        <div class="sidebar-logo-icon">
-            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-        </div>
-        <div>
-            <div class="sidebar-logo-text">ResearchFlow</div>
-            <div class="sidebar-logo-sub">AI Research Pipeline</div>
-        </div>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
+    st.markdown("### 📋 Pipeline Steps")
 
-    page = st.radio(
-        label="Navigation Menu Options",
-        options=["Dashboard", "Projects", "Analysis", "Logs"],
-        label_visibility="collapsed",
-    )
+    STEPS = [
+        ("🔍", "Search Agent", "search"),
+        ("📄", "Reader Agent", "reader"),
+        ("✍️", "Writer Chain", "writer"),
+        ("🧐", "Critic Agent", "critic"),
+    ]
 
-    st.markdown(
-        "<div style='height: calc(100vh - 360px);'></div>", unsafe_allow_html=True
-    )
+    cs = st.session_state.current_step
+    for icon, label, key in STEPS:
+        if cs == key + "_start":
+            state_cls, status = "active", "running…"
+        elif (
+            cs
+            and cs != "done"
+            and cs.split("_")[0] in [s[2] for s in STEPS]
+            and STEPS.index((icon, label, key))
+            < [s[2] for s in STEPS].index(cs.split("_")[0])
+        ):
+            state_cls, status = "done", "done"
+        else:
+            step_end_reached = st.session_state.get(key + "_done", False)
+            if step_end_reached:
+                state_cls, status = "done", "done"
+            else:
+                state_cls, status = "pending", "waiting"
 
-    st.markdown(
-        """
-    <div class="sidebar-bottom">
-        <div class="nav-item-footer">❓ &nbsp; Support</div>
-        <div class="nav-item-footer">🚪 &nbsp; Sign Out</div>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-# ── Context Controller Filter Routing ──────────────────────────────────────────
-if page == "Dashboard":
-    st.markdown('<div class="main-wrap">', unsafe_allow_html=True)
-
-    # ── Top bar search layout block ───────────────────────────────────────────
-    st.markdown('<div class="topbar-container">', unsafe_allow_html=True)
-
-    col_search, col_action = st.columns([5.2, 1.2])
-    with col_search:
         st.markdown(
-            """
-        <div class="search-wrapper">
-            <span class="search-icon-embed">🔍</span>
+            f"""
+        <div class="step-card {state_cls}">
+            <span class="step-icon">{icon}</span>
+            <span class="step-label">{label}</span>
+            <span class="step-status">{status}</span>
         </div>
         """,
             unsafe_allow_html=True,
         )
-        topic_input = st.text_input(
-            "Topic Input Entry Field",
-            placeholder="Enter research topic...",
-            value="Impact of CRISPR on personalized medicine 2024",
-            label_visibility="collapsed",
+
+    st.markdown("---")
+
+    if st.session_state.pipeline_run:
+        if st.button("🔄 Reset Pipeline"):
+            for k in [
+                "pipeline_run",
+                "current_step",
+                "search_results",
+                "scraped_content",
+                "report",
+                "critic_review",
+                "error",
+                "last_topic",
+                "search_done",
+                "reader_done",
+                "writer_done",
+                "critic_done",
+            ]:
+                st.session_state[k] = None if k != "pipeline_run" else False
+            st.rerun()
+
+
+# ── Main area ──────────────────────────────────────────────────────────────────
+st.markdown(
+    """
+<div class="hero-wrap">
+    <div class="hero-eyebrow">🔬 Multi-Agent Research System</div>
+    <div class="hero-title">ResearchMind</div>
+    <div class="hero-sub">Search &nbsp;·&nbsp; Read &nbsp;·&nbsp; Write &nbsp;·&nbsp; Critique — fully autonomous</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+topic = st.text_input(
+    "Research Topic",
+    placeholder="e.g. Quantum computing breakthroughs in 2025",
+    value=st.session_state.last_topic,
+)
+
+run_col, _ = st.columns([1, 3])
+with run_col:
+    run_btn = st.button(
+        "▶  Run Pipeline",
+        disabled=st.session_state.pipeline_run
+        and st.session_state.current_step is not None,
+    )
+
+
+# ── Pipeline execution ─────────────────────────────────────────────────────────
+if run_btn:
+    if not topic.strip():
+        st.markdown(
+            '<div class="err-box">⚠️ Please enter a research topic before running.</div>',
+            unsafe_allow_html=True,
         )
+    else:
+        for k in [
+            "search_results",
+            "scraped_content",
+            "report",
+            "critic_review",
+            "error",
+            "search_done",
+            "reader_done",
+            "writer_done",
+            "critic_done",
+        ]:
+            st.session_state[k] = None
+        st.session_state.pipeline_run = True
+        st.session_state.last_topic = topic
+        st.session_state.current_step = "search_start"
 
-    with col_action:
-        run_pipeline_trigger = st.button("Run Research", use_container_width=True)
+        try:
+            from pipeline import run_research_pipeline
 
-    st.markdown("</div>", unsafe_allow_html=True)
+            status_placeholder = st.empty()
 
-    # ── Master Pipeline Stage Monitor (Stepper Component) ─────────────────────
-    stepper_placeholder = st.empty()
+            for progress in run_research_pipeline(topic):
+                step = progress.get("step", "")
+                state = progress.get("state", {})
+                st.session_state.current_step = step
 
-    # ── Primary Operations Dynamic Work Matrix ─────────────────────────────────
-    left_workspace_panel, right_document_panel = st.columns([1.0, 1.0], gap="large")
+                if step == "search_start":
+                    status_placeholder.info("🔍 Search Agent is gathering information…")
+                elif step == "search_end":
+                    st.session_state.search_results = state.get("search_results")
+                    st.session_state.search_done = True
+                    status_placeholder.info(
+                        "📄 Reader Agent is extracting content from URLs…"
+                    )
+                elif step == "reader_end":
+                    st.session_state.scraped_content = state.get("scraped_content")
+                    st.session_state.reader_done = True
+                    status_placeholder.info("✍️ Writer Chain is generating the report…")
+                elif step == "writer_end":
+                    st.session_state.report = state.get("report")
+                    st.session_state.writer_done = True
+                    status_placeholder.info("🧐 Critic Agent is reviewing the report…")
+                elif step == "critic_end":
+                    st.session_state.critic_review = state.get("critic_review")
+                    st.session_state.critic_done = True
+                    status_placeholder.success("✅ Pipeline complete!")
 
-    with left_workspace_panel:
-        search_ph = st.empty()
-        reader_ph = st.empty()
-        writer_ph = st.empty()
-        critic_ph = st.empty()
-    with right_document_panel:
-        report_ph = st.empty()
+            st.session_state.current_step = "done"
 
-    def render_ui(step, state):
-        stepper_placeholder.markdown(build_stepper(step), unsafe_allow_html=True)
-        search_ph.markdown(build_search_card(step, state), unsafe_allow_html=True)
-        reader_ph.markdown(build_reader_card(step, state), unsafe_allow_html=True)
-        writer_ph.markdown(build_writer_card(step, state), unsafe_allow_html=True)
-        critic_ph.markdown(build_critic_card(step, state), unsafe_allow_html=True)
-        report_ph.markdown(build_report_card(step, state), unsafe_allow_html=True)
+        except ImportError as e:
+            st.session_state.error = f"Import error — make sure pipeline.py and agent.py are in the same directory.\n\nDetails: {e}"
+            st.session_state.pipeline_run = False
+        except Exception as e:
+            st.session_state.error = f"Pipeline error: {e}"
+            st.session_state.pipeline_run = False
 
-    # Initial Render
-    render_ui(st.session_state.pipeline_state["step"], st.session_state.pipeline_state["state"])
+        st.rerun()
 
-    if run_pipeline_trigger and topic_input.strip():
-        # Clear previous state
-        st.session_state.pipeline_state = {"step": None, "state": {}}
-        render_ui(None, {})
 
-        # Run pipeline
-        for progress in run_research_pipeline(topic_input):
-            st.session_state.pipeline_state = progress
-            render_ui(progress["step"], progress["state"])
-            time.sleep(0.5)
+# ── Error display ──────────────────────────────────────────────────────────────
+if st.session_state.error:
+    st.markdown(
+        f'<div class="err-box">❌ {st.session_state.error}</div>',
+        unsafe_allow_html=True,
+    )
 
-    st.markdown("</div>", unsafe_allow_html=True)
 
-else:
-    st.markdown('<div class="main-wrap">', unsafe_allow_html=True)
-    st.markdown(f"### {page} Workspace Panel View Context")
-    st.markdown("Placeholder implementation tracking active structural module targets.")
-    st.markdown("</div>", unsafe_allow_html=True)
+# ── Results display ────────────────────────────────────────────────────────────
+if (
+    st.session_state.search_results
+    or st.session_state.report
+    or st.session_state.critic_review
+):
+    st.markdown("---")
+    st.markdown("### 📊 Pipeline Output")
+
+    tab1, tab2, tab3, tab4 = st.tabs(
+        ["🔍 Search Results", "📄 Scraped Content", "📝 Report", "🧐 Critic Review"]
+    )
+
+    with tab1:
+        if st.session_state.search_results:
+            st.markdown(
+                '<div class="output-panel"><h4>Search Results</h4>',
+                unsafe_allow_html=True,
+            )
+            st.markdown('<div class="scroll-box">', unsafe_allow_html=True)
+            st.markdown(st.session_state.search_results)
+            st.markdown("</div></div>", unsafe_allow_html=True)
+        else:
+            st.caption("Waiting for search results…")
+
+    with tab2:
+        if st.session_state.scraped_content:
+            st.markdown(
+                '<div class="output-panel"><h4>Scraped Web Content</h4>',
+                unsafe_allow_html=True,
+            )
+            st.markdown('<div class="scroll-box">', unsafe_allow_html=True)
+            st.markdown(st.session_state.scraped_content)
+            st.markdown("</div></div>", unsafe_allow_html=True)
+        else:
+            st.caption("Waiting for scraped content…")
+
+    with tab3:
+        if st.session_state.report:
+            st.markdown(
+                '<div class="output-panel"><h4>Generated Research Report</h4>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(st.session_state.report)
+            st.markdown("</div>", unsafe_allow_html=True)
+            st.download_button(
+                label="⬇️ Download Report (.md)",
+                data=st.session_state.report,
+                file_name=f"report_{st.session_state.last_topic[:30].replace(' ','_')}.md",
+                mime="text/markdown",
+            )
+        else:
+            st.caption("Report will appear here after the writer step…")
+
+    with tab4:
+        if st.session_state.critic_review:
+            review_text = str(st.session_state.critic_review)
+            import re
+
+            score_match = re.search(r"Score:\s*(\d+)/10", review_text)
+            if score_match:
+                score = score_match.group(1)
+                st.markdown(
+                    f'<div class="score-badge">Score: {score}/10</div>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                '<div class="output-panel"><h4>Critic Review</h4>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(review_text)
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.caption("Critic review will appear here after the final step…")
+
+
+# ── Welcome state ──────────────────────────────────────────────────────────────
+elif not st.session_state.pipeline_run:
+    st.markdown(
+        """
+    <div style="margin-top:2rem; padding: 2rem; background:#111119; border:1px solid #1e1e2e; border-radius:10px; color:#6b6b7e; font-size:0.85rem; line-height:1.8;">
+        <strong style="color:#e8e4d9; font-family:'Syne',sans-serif; font-size:1rem;">How it works</strong><br><br>
+        1. &nbsp;Enter your <strong style="color:#7c6af7;">research topic</strong> in the field above<br>
+        2. &nbsp;Click <strong style="color:#7c6af7;">Run Pipeline</strong> to kick off the multi-agent flow<br>
+        3. &nbsp;Watch as the <strong style="color:#3ecf8e;">Search → Reader → Writer → Critic</strong> agents work in sequence<br>
+        4. &nbsp;Download your polished research report when done
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
